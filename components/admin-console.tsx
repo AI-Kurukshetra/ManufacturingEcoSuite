@@ -59,19 +59,34 @@ interface AdminConsoleProps {
 
 type FormState = Record<string, string | boolean>;
 
+function getSelectOptions(field: AdminFieldConfig, facilities: Facility[]) {
+  if (field.name === "facility_id") {
+    return facilities.map((facility) => ({
+      label: facility.name,
+      value: facility.id,
+    }));
+  }
+
+  return field.options ?? [];
+}
+
 function getInitialFieldValue(field: AdminFieldConfig, facilities: Facility[]) {
   if (field.type === "checkbox") {
     return Boolean(field.defaultValue);
-  }
-
-  if (field.name === "facility_id") {
-    return facilities[0]?.id ?? "";
   }
 
   if (field.type === "datetime-local") {
     return typeof field.defaultValue === "string"
       ? field.defaultValue
       : new Date().toISOString().slice(0, 16);
+  }
+
+  if (field.type === "select") {
+    if (typeof field.defaultValue === "string") {
+      return field.defaultValue;
+    }
+
+    return getSelectOptions(field, facilities)[0]?.value ?? "";
   }
 
   return typeof field.defaultValue === "string" ? field.defaultValue : "";
@@ -710,13 +725,7 @@ export function AdminConsole({
                 }
 
                 if (field.type === "select") {
-                  const options =
-                    field.name === "facility_id"
-                      ? facilities.map((facility) => ({
-                          label: facility.name,
-                          value: facility.id,
-                        }))
-                      : (field.options ?? []);
+                  const options = getSelectOptions(field, facilities);
 
                   return (
                     <label key={field.name} className="space-y-2 text-sm font-medium text-slate-700">
