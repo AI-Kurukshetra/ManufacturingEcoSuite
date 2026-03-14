@@ -34,6 +34,7 @@ import type {
   WaterUsage,
 } from "@/types";
 import { StatusBadge } from "@/components/status-badge";
+import { ToastStack, useToastQueue } from "@/components/toast-stack";
 
 type AdminRecord = Record<string, unknown>;
 
@@ -126,11 +127,11 @@ export function AdminConsole({
   const [pending, setPending] = useState(false);
   const [importPending, setImportPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(() =>
     createEmptyForm(adminEntityConfigs.facilities, facilities),
   );
+  const { toasts, dismissToast, pushToast, patchToast } = useToastQueue();
 
   const config = adminEntityConfigs[activeEntity];
   const records = datasets[activeEntity] as unknown as AdminRecord[];
@@ -150,14 +151,12 @@ export function AdminConsole({
     setEditingId(null);
     setOpen(false);
     setError(null);
-    setSuccess(null);
   }
 
   function openCreateModal() {
     setEditingId(null);
     setForm(createEmptyForm(config, facilities));
     setError(null);
-    setSuccess(null);
     setOpen(true);
   }
 
@@ -170,102 +169,182 @@ export function AdminConsole({
     setEditingId(String(record.id));
     setForm(nextState);
     setError(null);
-    setSuccess(null);
     setOpen(true);
   }
 
   async function saveRecord() {
     setPending(true);
     setError(null);
-    setSuccess(null);
-
-    const payload = editingId ? { ...form, id: editingId } : form;
-    const response = await fetch("/api/admin/records", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        entity: activeEntity,
-        action: "upsert",
-        payload,
-      }),
+    const label = config.singularLabel.toLowerCase();
+    const loadingToastId = pushToast({
+      tone: "loading",
+      title: editingId ? `Saving ${label} changes` : `Creating ${label}`,
+      description: "Writing the update to your live dataset.",
     });
 
-    const result = (await response.json()) as { error?: string };
-    if (!response.ok) {
-      setError(result.error ?? "Unable to save record.");
-      setPending(false);
-      return;
-    }
+    try {
+      const payload = editingId ? { ...form, id: editingId } : form;
+      const response = await fetch("/api/admin/records", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          entity: activeEntity,
+          action: "upsert",
+          payload,
+        }),
+      });
 
-    setPending(false);
-    setOpen(false);
-    setEditingId(null);
-    setSuccess(
-      `${config.singularLabel} ${editingId ? "updated" : "created"} successfully.`,
-    );
-    router.refresh();
+      const result = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        const message = result.error ?? "Unable to save record.";
+        setError(message);
+        patchToast(loadingToastId, {
+          tone: "error",
+          title: `Could not save ${label}`,
+          description: message,
+          timeoutMs: 5200,
+        });
+        setPending(false);
+        return;
+      }
+
+      setPending(false);
+      setOpen(false);
+      setEditingId(null);
+      setForm(createEmptyForm(config, facilities));
+      patchToast(loadingToastId, {
+        tone: "success",
+        title: `${config.singularLabel} ${editingId ? "updated" : "created"}`,
+        description: "The dashboard will refresh with the latest record.",
+      });
+      router.refresh();
+    } catch (caughtError) {
+      const message =
+        caughtError instanceof Error ? caughtError.message : "Unable to save record.";
+      setError(message);
+      patchToast(loadingToastId, {
+        tone: "error",
+        title: `Could not save ${label}`,
+        description: message,
+        timeoutMs: 5200,
+      });
+      setPending(false);
+    }
   }
 
   async function deleteRecord(id: string) {
     setPending(true);
     setError(null);
-    setSuccess(null);
-
-    const response = await fetch("/api/admin/records", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        entity: activeEntity,
-        action: "delete",
-        id,
-      }),
+    const label = config.singularLabel.toLowerCase();
+    const loadingToastId = pushToast({
+      tone: "loading",
+      title: `Removing ${label}`,
+      description: "Cleaning up the selected record.",
     });
 
-    const result = (await response.json()) as { error?: string };
-    if (!response.ok) {
-      setError(result.error ?? "Unable to delete record.");
-      setPending(false);
-      return;
-    }
+    try {
+      const response = await fetch("/api/admin/records", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          entity: activeEntity,
+          action: "delete",
+          id,
+        }),
+      });
 
-    setPending(false);
-    setSuccess(`${config.singularLabel} deleted successfully.`);
-    router.refresh();
+      const result = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        const message = result.error ?? "Unable to delete record.";
+        patchToast(loadingToastId, {
+          tone: "error",
+          title: `Could not remove ${label}`,
+          description: message,
+          timeoutMs: 5200,
+        });
+        setPending(false);
+        return;
+      }
+
+      setPending(false);
+      patchToast(loadingToastId, {
+        tone: "success",
+        title: `${config.singularLabel} deleted`,
+        description: "The record has been removed from the dataset.",
+      });
+      router.refresh();
+    } catch (caughtError) {
+      const message =
+        caughtError instanceof Error ? caughtError.message : "Unable to delete record.";
+      patchToast(loadingToastId, {
+        tone: "error",
+        title: `Could not remove ${label}`,
+        description: message,
+        timeoutMs: 5200,
+      });
+      setPending(false);
+    }
   }
 
   async function importCsv(file: File) {
     setImportPending(true);
     setError(null);
-    setSuccess(null);
-
-    const response = await fetch("/api/admin/import", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        entity: activeEntity,
-        csvText: await file.text(),
-      }),
+    const loadingToastId = pushToast({
+      tone: "loading",
+      title: `Importing ${config.label.toLowerCase()}`,
+      description: "Parsing the file and writing rows to Supabase.",
     });
 
-    const result = (await response.json()) as { error?: string; inserted?: number };
-    if (!response.ok) {
-      setError(result.error ?? "Unable to import CSV.");
-      setImportPending(false);
-      return;
-    }
+    try {
+      const response = await fetch("/api/admin/import", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          entity: activeEntity,
+          csvText: await file.text(),
+        }),
+      });
 
-    setImportPending(false);
-    setSuccess(`Imported ${result.inserted ?? 0} ${config.label.toLowerCase()} rows.`);
-    if (importInputRef.current) {
-      importInputRef.current.value = "";
+      const result = (await response.json()) as { error?: string; inserted?: number };
+      if (!response.ok) {
+        const message = result.error ?? "Unable to import CSV.";
+        patchToast(loadingToastId, {
+          tone: "error",
+          title: "Import failed",
+          description: message,
+          timeoutMs: 5200,
+        });
+        setImportPending(false);
+        return;
+      }
+
+      setImportPending(false);
+      patchToast(loadingToastId, {
+        tone: "success",
+        title: "Import complete",
+        description: `Added ${result.inserted ?? 0} ${config.label.toLowerCase()} rows.`,
+      });
+      if (importInputRef.current) {
+        importInputRef.current.value = "";
+      }
+      router.refresh();
+    } catch (caughtError) {
+      const message =
+        caughtError instanceof Error ? caughtError.message : "Unable to import CSV.";
+      patchToast(loadingToastId, {
+        tone: "error",
+        title: "Import failed",
+        description: message,
+        timeoutMs: 5200,
+      });
+      setImportPending(false);
     }
-    router.refresh();
   }
 
   async function logout() {
@@ -323,6 +402,8 @@ export function AdminConsole({
 
   return (
     <div className="space-y-6">
+      <ToastStack toasts={toasts} onDismiss={dismissToast} />
+
       <section className="card">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div>
@@ -490,17 +571,6 @@ export function AdminConsole({
             </div>
           ) : null}
 
-          {error ? (
-            <div className="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
-              {error}
-            </div>
-          ) : null}
-          {success ? (
-            <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-              {success}
-            </div>
-          ) : null}
-
           <div className="mt-6 table-wrap overflow-x-auto">
             <table className="table-base">
               <thead>
@@ -608,6 +678,12 @@ export function AdminConsole({
                 <X className="h-4 w-4" />
               </button>
             </div>
+
+            {error ? (
+              <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                {error}
+              </div>
+            ) : null}
 
             <div className="grid gap-4 md:grid-cols-2">
               {config.fields.map((field) => {

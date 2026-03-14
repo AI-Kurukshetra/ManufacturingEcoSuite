@@ -78,35 +78,16 @@ function AppNavigation({
 
   return (
     <nav className="flex-1 space-y-1 px-4 py-6">
-      {navigation.map((item) => {
-        const isActive =
-          item.href === "/"
-            ? pathname === item.href
-            : pathname === item.href || pathname.startsWith(`${item.href}/`);
-        const Icon = item.icon;
-
-        return (
-          <Link
-            key={item.href}
-            href={`${item.href}${search}`}
-            className={cn(
-              "flex items-center justify-between rounded-xl px-4 py-3 text-sm font-medium transition",
-              isActive ? "bg-white/12 text-white" : "text-white/75 hover:bg-white/8",
-            )}
-            onClick={onNavigate}
-          >
-            <span className="flex items-center gap-3">
-              <Icon className="h-4 w-4" />
-              {item.label}
-            </span>
-            {item.href === "/alerts" && unreadAlerts > 0 ? (
-              <span className="rounded-full bg-accent px-2 py-0.5 text-xs font-semibold text-brand">
-                {unreadAlerts}
-              </span>
-            ) : null}
-          </Link>
-        );
-      })}
+      {navigation.map((item) => (
+        <SidebarNavigationItem
+          key={item.href}
+          item={item}
+          pathname={pathname}
+          unreadAlerts={unreadAlerts}
+          href={`${item.href}${search}`}
+          onNavigate={onNavigate}
+        />
+      ))}
     </nav>
   );
 }
@@ -122,36 +103,58 @@ function AppNavigationFallback({
 }) {
   return (
     <nav className="flex-1 space-y-1 px-4 py-6">
-      {navigation.map((item) => {
-        const isActive =
-          item.href === "/"
-            ? pathname === item.href
-            : pathname === item.href || pathname.startsWith(`${item.href}/`);
-        const Icon = item.icon;
-
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={cn(
-              "flex items-center justify-between rounded-xl px-4 py-3 text-sm font-medium transition",
-              isActive ? "bg-white/12 text-white" : "text-white/75 hover:bg-white/8",
-            )}
-            onClick={onNavigate}
-          >
-            <span className="flex items-center gap-3">
-              <Icon className="h-4 w-4" />
-              {item.label}
-            </span>
-            {item.href === "/alerts" && unreadAlerts > 0 ? (
-              <span className="rounded-full bg-accent px-2 py-0.5 text-xs font-semibold text-brand">
-                {unreadAlerts}
-              </span>
-            ) : null}
-          </Link>
-        );
-      })}
+      {navigation.map((item) => (
+        <SidebarNavigationItem
+          key={item.href}
+          item={item}
+          pathname={pathname}
+          unreadAlerts={unreadAlerts}
+          href={item.href}
+          onNavigate={onNavigate}
+        />
+      ))}
     </nav>
+  );
+}
+
+function SidebarNavigationItem({
+  item,
+  pathname,
+  unreadAlerts,
+  href,
+  onNavigate,
+}: {
+  item: (typeof navigation)[number];
+  pathname: string;
+  unreadAlerts: number;
+  href: string;
+  onNavigate: () => void;
+}) {
+  const isActive =
+    item.href === "/"
+      ? pathname === item.href
+      : pathname === item.href || pathname.startsWith(`${item.href}/`);
+  const Icon = item.icon;
+
+  return (
+    <Link
+      href={href}
+      className={cn(
+        "flex items-center justify-between rounded-xl px-4 py-3 text-sm font-medium transition",
+        isActive ? "bg-white/12 text-white" : "text-white/75 hover:bg-white/8",
+      )}
+      onClick={onNavigate}
+    >
+      <span className="flex items-center gap-3">
+        <Icon className="h-4 w-4" />
+        {item.label}
+      </span>
+      {item.href === "/alerts" && unreadAlerts > 0 ? (
+        <span className="rounded-full bg-accent px-2 py-0.5 text-xs font-semibold text-brand">
+          {unreadAlerts}
+        </span>
+      ) : null}
+    </Link>
   );
 }
 

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { StatusBadge } from "@/components/status-badge";
+import { ToastStack, useToastQueue } from "@/components/toast-stack";
 import {
   calculateGoalProgress,
   daysUntil,
@@ -48,6 +49,7 @@ export function GoalsManager({ facilities, goals }: GoalsManagerProps) {
     ...emptyForm,
     facility_id: facilities[0]?.id ?? "",
   });
+  const { toasts, dismissToast, pushToast, patchToast } = useToastQueue();
 
   const facilityMap = new Map(facilities.map((facility) => [facility.id, facility.name]));
 
@@ -59,6 +61,11 @@ export function GoalsManager({ facilities, goals }: GoalsManagerProps) {
 
     setPending(true);
     setError(null);
+    const loadingToastId = pushToast({
+      tone: "loading",
+      title: form.id ? "Saving goal updates" : "Creating new goal",
+      description: "Updating progress tracking for this target.",
+    });
 
     const payload = {
       facility_id: form.facility_id,
@@ -86,6 +93,12 @@ export function GoalsManager({ facilities, goals }: GoalsManagerProps) {
 
     if (responseError) {
       setError(responseError.message);
+      patchToast(loadingToastId, {
+        tone: "error",
+        title: "Goal save failed",
+        description: responseError.message,
+        timeoutMs: 5200,
+      });
       setPending(false);
       return;
     }
@@ -94,12 +107,22 @@ export function GoalsManager({ facilities, goals }: GoalsManagerProps) {
     setOpen(false);
     setError(null);
     setForm({ ...emptyForm, facility_id: facilities[0]?.id ?? "" });
+    patchToast(loadingToastId, {
+      tone: "success",
+      title: form.id ? "Goal updated" : "Goal created",
+      description: "Progress tracking is now synced with the latest values.",
+    });
     router.refresh();
   }
 
   async function deleteGoal(id: string) {
     setPending(true);
     setError(null);
+    const loadingToastId = pushToast({
+      tone: "loading",
+      title: "Deleting goal",
+      description: "Removing this milestone from the tracker.",
+    });
 
     const { error: deleteError } = await supabase
       .from("sustainability_goals")
@@ -108,16 +131,29 @@ export function GoalsManager({ facilities, goals }: GoalsManagerProps) {
 
     if (deleteError) {
       setError(deleteError.message);
+      patchToast(loadingToastId, {
+        tone: "error",
+        title: "Goal delete failed",
+        description: deleteError.message,
+        timeoutMs: 5200,
+      });
       setPending(false);
       return;
     }
 
     setPending(false);
+    patchToast(loadingToastId, {
+      tone: "success",
+      title: "Goal deleted",
+      description: "The tracker has been refreshed without that milestone.",
+    });
     router.refresh();
   }
 
   return (
     <div className="space-y-6">
+      <ToastStack toasts={toasts} onDismiss={dismissToast} />
+
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-xl font-semibold text-slate-900">Goals tracker</h2>
