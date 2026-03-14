@@ -64,7 +64,7 @@ export default async function AlertsPage({ searchParams }: AlertsPageProps) {
         <div>
           <h2 className="text-xl font-semibold text-slate-900">Alert Center</h2>
           <p className="text-sm text-slate-500">
-            Filter by severity and update alert state in Supabase.
+            Filter by severity and update alert state directly in the app.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">

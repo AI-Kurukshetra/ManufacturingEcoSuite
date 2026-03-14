@@ -42,7 +42,7 @@ export default async function EquipmentPage({ searchParams }: EquipmentPageProps
       <EmptyState
         icon={Settings2}
         title="No equipment found"
-        description="Equipment records will appear here once added in Supabase."
+        description="Equipment records will appear here once added through the Admin Console."
       />
     );
   }

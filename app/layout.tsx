@@ -11,6 +11,8 @@ const inter = Inter({
   variable: "--font-inter",
 });
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "EcoSuite",
   description: "Real-time energy intelligence for modern manufacturers",

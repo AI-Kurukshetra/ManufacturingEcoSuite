@@ -2,11 +2,13 @@ import { Lightbulb, TrendingUp, Wallet } from "lucide-react";
 
 import { EnergyTrendChart } from "@/components/charts";
 import { PageFacilityFilter } from "@/components/page-facility-filter";
-import { getEnergyConsumption, getFacilities } from "@/lib/data";
+import { getEnergyConsumption, getEnergyInsight, getFacilities } from "@/lib/data";
 import {
   formatCompactNumber,
   formatCurrency,
+  formatDateTime,
   formatPercent,
+  formatRelativeTime,
   getMonthKey,
 } from "@/lib/format";
 
@@ -49,6 +51,8 @@ export default async function EnergyPage({ searchParams }: EnergyPageProps) {
   }, {});
   const mostExpensiveType =
     Object.entries(costByType).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "n/a";
+  const latestRecordAt = energy[0]?.recorded_at ?? null;
+  const energyInsight = getEnergyInsight(energy, facilities);
 
   const trendMap = energy.reduce<Record<string, Record<string, number>>>(
     (accumulator, entry) => {
@@ -82,10 +86,10 @@ export default async function EnergyPage({ searchParams }: EnergyPageProps) {
             Filter by facility and review live energy spend, usage and cost trends.
           </p>
         </div>
-        <PageFacilityFilter facilities={facilities} />
+        <PageFacilityFilter facilities={facilities} selectedFacilityId={facilityId} />
       </div>
 
-      <section className="grid gap-4 md:grid-cols-3">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <div className="card">
           <div className="flex items-center gap-2 text-sm text-slate-500">
             <Wallet className="h-4 w-4 text-brand" />
@@ -113,6 +117,15 @@ export default async function EnergyPage({ searchParams }: EnergyPageProps) {
             {mostExpensiveType}
           </div>
         </div>
+        <div className="card">
+          <div className="text-sm text-slate-500">Last record added</div>
+          <div className="mt-4 text-3xl font-semibold text-slate-900">
+            {latestRecordAt ? formatRelativeTime(latestRecordAt) : "No data"}
+          </div>
+          <div className="mt-2 text-sm text-slate-500">
+            {latestRecordAt ? formatDateTime(latestRecordAt) : "Add energy data to start tracking"}
+          </div>
+        </div>
       </section>
 
       <section className="card">
@@ -130,8 +143,7 @@ export default async function EnergyPage({ searchParams }: EnergyPageProps) {
           AI Insight
         </div>
         <p className="mt-3 text-base text-amber-900">
-          Electricity consumption peaked on weekday mornings. Consider shifting
-          heavy machinery to off-peak hours to reduce cost by ~12%.
+          {energyInsight}
         </p>
       </section>
 

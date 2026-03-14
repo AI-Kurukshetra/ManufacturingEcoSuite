@@ -3,6 +3,7 @@
 import {
   Bell,
   Building2,
+  Database,
   Droplets,
   LayoutDashboard,
   Leaf,
@@ -16,7 +17,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 
 import { cn } from "@/lib/format";
 import type { Facility } from "@/types";
@@ -31,6 +32,7 @@ const navigation = [
   { href: "/waste-water", label: "Waste & Water", icon: Droplets },
   { href: "/alerts", label: "Alerts", icon: Bell },
   { href: "/compliance", label: "Compliance", icon: ShieldCheck },
+  { href: "/admin", label: "Admin", icon: Database },
 ];
 
 function getTitle(pathname: string) {
@@ -40,6 +42,10 @@ function getTitle(pathname: string) {
 
   if (pathname.startsWith("/facilities/")) {
     return "Facility Detail";
+  }
+
+  if (pathname === "/admin") {
+    return "Admin Console";
   }
 
   return pathname
@@ -55,19 +61,193 @@ interface AppShellProps {
   unreadAlerts: number;
 }
 
-export function AppShell({ children, facilities, unreadAlerts }: AppShellProps) {
-  const pathname = usePathname();
-  const router = useRouter();
+function AppNavigation({
+  pathname,
+  unreadAlerts,
+  onNavigate,
+}: {
+  pathname: string;
+  unreadAlerts: number;
+  onNavigate: () => void;
+}) {
   const searchParams = useSearchParams();
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const activeFacility = searchParams.get("facility") ?? "all";
-  const alertsHref =
-    activeFacility === "all" ? "/alerts" : `/alerts?facility=${activeFacility}`;
-
   const search = (() => {
     const params = new URLSearchParams(searchParams.toString());
     return params.toString() ? `?${params.toString()}` : "";
   })();
+
+  return (
+    <nav className="flex-1 space-y-1 px-4 py-6">
+      {navigation.map((item) => {
+        const isActive =
+          item.href === "/"
+            ? pathname === item.href
+            : pathname === item.href || pathname.startsWith(`${item.href}/`);
+        const Icon = item.icon;
+
+        return (
+          <Link
+            key={item.href}
+            href={`${item.href}${search}`}
+            className={cn(
+              "flex items-center justify-between rounded-xl px-4 py-3 text-sm font-medium transition",
+              isActive ? "bg-white/12 text-white" : "text-white/75 hover:bg-white/8",
+            )}
+            onClick={onNavigate}
+          >
+            <span className="flex items-center gap-3">
+              <Icon className="h-4 w-4" />
+              {item.label}
+            </span>
+            {item.href === "/alerts" && unreadAlerts > 0 ? (
+              <span className="rounded-full bg-accent px-2 py-0.5 text-xs font-semibold text-brand">
+                {unreadAlerts}
+              </span>
+            ) : null}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
+function AppNavigationFallback({
+  pathname,
+  unreadAlerts,
+  onNavigate,
+}: {
+  pathname: string;
+  unreadAlerts: number;
+  onNavigate: () => void;
+}) {
+  return (
+    <nav className="flex-1 space-y-1 px-4 py-6">
+      {navigation.map((item) => {
+        const isActive =
+          item.href === "/"
+            ? pathname === item.href
+            : pathname === item.href || pathname.startsWith(`${item.href}/`);
+        const Icon = item.icon;
+
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            className={cn(
+              "flex items-center justify-between rounded-xl px-4 py-3 text-sm font-medium transition",
+              isActive ? "bg-white/12 text-white" : "text-white/75 hover:bg-white/8",
+            )}
+            onClick={onNavigate}
+          >
+            <span className="flex items-center gap-3">
+              <Icon className="h-4 w-4" />
+              {item.label}
+            </span>
+            {item.href === "/alerts" && unreadAlerts > 0 ? (
+              <span className="rounded-full bg-accent px-2 py-0.5 text-xs font-semibold text-brand">
+                {unreadAlerts}
+              </span>
+            ) : null}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
+function AppHeaderControls({
+  pathname,
+  facilities,
+  unreadAlerts,
+}: {
+  pathname: string;
+  facilities: Facility[];
+  unreadAlerts: number;
+}) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const activeFacility = searchParams.get("facility") ?? "all";
+  const alertsHref =
+    activeFacility === "all" ? "/alerts" : `/alerts?facility=${activeFacility}`;
+
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      <select
+        className="min-w-56 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+        value={activeFacility}
+        onChange={(event) => {
+          const params = new URLSearchParams(searchParams.toString());
+          if (event.target.value === "all") {
+            params.delete("facility");
+          } else {
+            params.set("facility", event.target.value);
+          }
+          router.push(`${pathname}${params.toString() ? `?${params.toString()}` : ""}`);
+        }}
+      >
+        <option value="all">All facilities</option>
+        {facilities.map((facility) => (
+          <option key={facility.id} value={facility.id}>
+            {facility.name}
+          </option>
+        ))}
+      </select>
+      <Link
+        href={alertsHref}
+        aria-label="Open alerts"
+        className="relative rounded-full border border-slate-200 p-2 text-slate-700 transition hover:border-brand hover:text-brand"
+      >
+        <Bell className="h-5 w-5" />
+        {unreadAlerts > 0 ? (
+          <span className="absolute -right-1 -top-1 rounded-full bg-accent px-1.5 text-[10px] font-semibold text-brand">
+            {unreadAlerts}
+          </span>
+        ) : null}
+      </Link>
+    </div>
+  );
+}
+
+function AppHeaderControlsFallback({
+  facilities,
+  unreadAlerts,
+}: {
+  facilities: Facility[];
+  unreadAlerts: number;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      <select
+        className="min-w-56 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+        defaultValue="all"
+        disabled
+      >
+        <option value="all">All facilities</option>
+        {facilities.map((facility) => (
+          <option key={facility.id} value={facility.id}>
+            {facility.name}
+          </option>
+        ))}
+      </select>
+      <Link
+        href="/alerts"
+        aria-label="Open alerts"
+        className="relative rounded-full border border-slate-200 p-2 text-slate-700 transition hover:border-brand hover:text-brand"
+      >
+        <Bell className="h-5 w-5" />
+        {unreadAlerts > 0 ? (
+          <span className="absolute -right-1 -top-1 rounded-full bg-accent px-1.5 text-[10px] font-semibold text-brand">
+            {unreadAlerts}
+          </span>
+        ) : null}
+      </Link>
+    </div>
+  );
+}
+
+export function AppShell({ children, facilities, unreadAlerts }: AppShellProps) {
+  const pathname = usePathname();
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-app">
@@ -100,37 +280,21 @@ export function AppShell({ children, facilities, unreadAlerts }: AppShellProps) 
               </button>
             </div>
 
-            <nav className="flex-1 space-y-1 px-4 py-6">
-              {navigation.map((item) => {
-                const isActive =
-                  item.href === "/"
-                    ? pathname === item.href
-                    : pathname === item.href || pathname.startsWith(`${item.href}/`);
-                const Icon = item.icon;
-
-                return (
-                  <Link
-                    key={item.href}
-                    href={`${item.href}${search}`}
-                    className={cn(
-                      "flex items-center justify-between rounded-xl px-4 py-3 text-sm font-medium transition",
-                      isActive ? "bg-white/12 text-white" : "text-white/75 hover:bg-white/8",
-                    )}
-                    onClick={() => setMobileOpen(false)}
-                  >
-                    <span className="flex items-center gap-3">
-                      <Icon className="h-4 w-4" />
-                      {item.label}
-                    </span>
-                    {item.href === "/alerts" && unreadAlerts > 0 ? (
-                      <span className="rounded-full bg-accent px-2 py-0.5 text-xs font-semibold text-brand">
-                        {unreadAlerts}
-                      </span>
-                    ) : null}
-                  </Link>
-                );
-              })}
-            </nav>
+            <Suspense
+              fallback={
+                <AppNavigationFallback
+                  pathname={pathname}
+                  unreadAlerts={unreadAlerts}
+                  onNavigate={() => setMobileOpen(false)}
+                />
+              }
+            >
+              <AppNavigation
+                pathname={pathname}
+                unreadAlerts={unreadAlerts}
+                onNavigate={() => setMobileOpen(false)}
+              />
+            </Suspense>
           </div>
         </aside>
 
@@ -163,40 +327,20 @@ export function AppShell({ children, facilities, unreadAlerts }: AppShellProps) 
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-3">
-                <select
-                  className="min-w-56 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
-                  value={activeFacility}
-                  onChange={(event) => {
-                    const params = new URLSearchParams(searchParams.toString());
-                    if (event.target.value === "all") {
-                      params.delete("facility");
-                    } else {
-                      params.set("facility", event.target.value);
-                    }
-                    router.push(`${pathname}${params.toString() ? `?${params.toString()}` : ""}`);
-                  }}
-                >
-                  <option value="all">All facilities</option>
-                  {facilities.map((facility) => (
-                    <option key={facility.id} value={facility.id}>
-                      {facility.name}
-                    </option>
-                  ))}
-                </select>
-                <Link
-                  href={alertsHref}
-                  aria-label="Open alerts"
-                  className="relative rounded-full border border-slate-200 p-2 text-slate-700 transition hover:border-brand hover:text-brand"
-                >
-                  <Bell className="h-5 w-5" />
-                  {unreadAlerts > 0 ? (
-                    <span className="absolute -right-1 -top-1 rounded-full bg-accent px-1.5 text-[10px] font-semibold text-brand">
-                      {unreadAlerts}
-                    </span>
-                  ) : null}
-                </Link>
-              </div>
+              <Suspense
+                fallback={
+                  <AppHeaderControlsFallback
+                    facilities={facilities}
+                    unreadAlerts={unreadAlerts}
+                  />
+                }
+              >
+                <AppHeaderControls
+                  pathname={pathname}
+                  facilities={facilities}
+                  unreadAlerts={unreadAlerts}
+                />
+              </Suspense>
             </div>
           </header>
 

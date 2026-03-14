@@ -14,7 +14,7 @@ export default async function FacilitiesPage() {
       <EmptyState
         icon={Building2}
         title="No facilities found"
-        description="Add a facility record in Supabase to populate this portfolio view."
+        description="Add a facility from the Admin Console to populate this portfolio view."
       />
     );
   }

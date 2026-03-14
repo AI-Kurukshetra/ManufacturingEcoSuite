@@ -1,17 +1,19 @@
-import { cache } from "react";
-
 import {
   addMonths,
+  formatCompactNumber,
   getGoalStatus,
   getMonthKey,
   getMonthLabel,
   getQuarterLabel,
   startOfMonth,
+  titleCase,
 } from "@/lib/format";
 import { supabase } from "@/lib/supabase";
 import type {
+  ActivityFeedItem,
   Alert,
   Compliance,
+  DataFreshnessItem,
   Emission,
   EnergyConsumption,
   Equipment,
@@ -197,28 +199,219 @@ function getCurrentQuarter(emissions: Emission[]) {
     .at(-1);
 }
 
-export const getFacilities = cache(async (): Promise<Facility[]> => {
+function getLatestTimestamp(values: Array<string | null | undefined>) {
+  const timestamps = values
+    .map((value) => (value ? new Date(value).getTime() : Number.NaN))
+    .filter((value) => Number.isFinite(value));
+
+  if (timestamps.length === 0) {
+    return null;
+  }
+
+  return new Date(Math.max(...timestamps)).toISOString();
+}
+
+function getComplianceStatus(records: Compliance[]) {
+  if (records.some((record) => record.status === "non_compliant")) {
+    return "non_compliant";
+  }
+
+  if (records.some((record) => record.status === "review_needed")) {
+    return "review_needed";
+  }
+
+  return "compliant";
+}
+
+function buildFreshnessItems({
+  facilities,
+  energy,
+  emissions,
+  goals,
+  equipment,
+  waste,
+  water,
+  alerts,
+  compliance,
+}: {
+  facilities: Facility[];
+  energy: EnergyConsumption[];
+  emissions: Emission[];
+  goals?: SustainabilityGoal[];
+  equipment: Equipment[];
+  waste: WasteStream[];
+  water: WaterUsage[];
+  alerts: Alert[];
+  compliance: Compliance[];
+}): DataFreshnessItem[] {
+  return [
+    {
+      key: "facilities",
+      label: "Facilities",
+      count: facilities.length,
+      latest_at: getLatestTimestamp(facilities.map((entry) => entry.created_at)),
+    },
+    {
+      key: "energy",
+      label: "Energy",
+      count: energy.length,
+      latest_at: getLatestTimestamp(energy.map((entry) => entry.recorded_at)),
+    },
+    {
+      key: "emissions",
+      label: "Emissions",
+      count: emissions.length,
+      latest_at: getLatestTimestamp(emissions.map((entry) => entry.recorded_at)),
+    },
+    {
+      key: "goals",
+      label: "Goals",
+      count: goals?.length ?? 0,
+      latest_at: getLatestTimestamp(goals?.map((entry) => entry.created_at) ?? []),
+    },
+    {
+      key: "equipment",
+      label: "Equipment",
+      count: equipment.length,
+      latest_at: getLatestTimestamp(equipment.map((entry) => entry.last_maintenance)),
+    },
+    {
+      key: "waste",
+      label: "Waste",
+      count: waste.length,
+      latest_at: getLatestTimestamp(waste.map((entry) => entry.recorded_at)),
+    },
+    {
+      key: "water",
+      label: "Water",
+      count: water.length,
+      latest_at: getLatestTimestamp(water.map((entry) => entry.recorded_at)),
+    },
+    {
+      key: "alerts",
+      label: "Alerts",
+      count: alerts.length,
+      latest_at: getLatestTimestamp(alerts.map((entry) => entry.created_at)),
+    },
+    {
+      key: "compliance",
+      label: "Compliance",
+      count: compliance.length,
+      latest_at: getLatestTimestamp(compliance.map((entry) => entry.due_date)),
+    },
+  ];
+}
+
+function buildActivityFeed({
+  facilities,
+  energy,
+  emissions,
+  goals,
+  waste,
+  water,
+  alerts,
+}: {
+  facilities: Facility[];
+  energy: EnergyConsumption[];
+  emissions: Emission[];
+  goals?: SustainabilityGoal[];
+  waste: WasteStream[];
+  water: WaterUsage[];
+  alerts: Alert[];
+}): ActivityFeedItem[] {
+  const facilityMap = new Map(facilities.map((facility) => [facility.id, facility.name]));
+
+  const items: ActivityFeedItem[] = [
+    ...facilities.map((entry) => ({
+      id: `facility-${entry.id}`,
+      category: "Facility",
+      title: entry.name,
+      detail: [entry.location, entry.type].filter(Boolean).join(" / ") || "New facility added",
+      timestamp: entry.created_at,
+    })),
+    ...energy.map((entry) => ({
+      id: `energy-${entry.id}`,
+      category: "Energy",
+      title: `${titleCase(entry.type)} reading logged`,
+      detail: `${formatCompactNumber(entry.value)} ${entry.unit} at ${
+        facilityMap.get(entry.facility_id) ?? "Unknown facility"
+      }`,
+      timestamp: entry.recorded_at,
+    })),
+    ...emissions.map((entry) => ({
+      id: `emission-${entry.id}`,
+      category: "Emissions",
+      title: `${titleCase(entry.scope)} entry updated`,
+      detail: `${entry.value} ${entry.unit} for ${
+        facilityMap.get(entry.facility_id) ?? "Unknown facility"
+      }`,
+      timestamp: entry.recorded_at,
+    })),
+    ...(goals ?? []).map((entry) => ({
+      id: `goal-${entry.id}`,
+      category: "Goals",
+      title: entry.title,
+      detail: `Progress updated for ${facilityMap.get(entry.facility_id) ?? "Unknown facility"}`,
+      timestamp: entry.created_at,
+    })),
+    ...waste.map((entry) => ({
+      id: `waste-${entry.id}`,
+      category: "Waste",
+      title: `${entry.type} stream recorded`,
+      detail: `${entry.quantity ?? 0} ${entry.unit ?? ""} at ${
+        facilityMap.get(entry.facility_id) ?? "Unknown facility"
+      }`.trim(),
+      timestamp: entry.recorded_at,
+    })),
+    ...water.map((entry) => ({
+      id: `water-${entry.id}`,
+      category: "Water",
+      title: `Water usage logged`,
+      detail: `${entry.consumption ?? 0} ${entry.unit} at ${
+        facilityMap.get(entry.facility_id) ?? "Unknown facility"
+      }`,
+      timestamp: entry.recorded_at,
+    })),
+    ...alerts.map((entry) => ({
+      id: `alert-${entry.id}`,
+      category: "Alerts",
+      title: titleCase(entry.type),
+      detail: entry.message ?? `Severity ${entry.severity} alert created`,
+      timestamp: entry.created_at,
+    })),
+  ];
+
+  return items
+    .filter((item) => item.timestamp)
+    .sort(
+      (left, right) =>
+        new Date(right.timestamp).getTime() - new Date(left.timestamp).getTime(),
+    )
+    .slice(0, 8);
+}
+
+export const getFacilities = async (): Promise<Facility[]> => {
   const response = await supabase.from("facilities").select("*").order("name");
   const data = ensureData(response.data, response.error) ?? [];
   return data.map((row) => normalizeFacility(row as Record<string, unknown>));
-});
+};
 
-export const getEnergyConsumption = cache(
-  async (facilityId?: string): Promise<EnergyConsumption[]> => {
-    let query = supabase
-      .from("energy_consumption")
-      .select("*")
-      .order("recorded_at", { ascending: false });
+export const getEnergyConsumption = async (
+  facilityId?: string,
+): Promise<EnergyConsumption[]> => {
+  let query = supabase
+    .from("energy_consumption")
+    .select("*")
+    .order("recorded_at", { ascending: false });
 
-    query = applyFacilityFilter(query, facilityId);
+  query = applyFacilityFilter(query, facilityId);
 
-    const response = await query;
-    const data = ensureData(response.data, response.error) ?? [];
-    return data.map((row) => normalizeEnergy(row as Record<string, unknown>));
-  },
-);
+  const response = await query;
+  const data = ensureData(response.data, response.error) ?? [];
+  return data.map((row) => normalizeEnergy(row as Record<string, unknown>));
+};
 
-export const getEmissions = cache(async (facilityId?: string): Promise<Emission[]> => {
+export const getEmissions = async (facilityId?: string): Promise<Emission[]> => {
   let query = supabase.from("emissions").select("*").order("recorded_at", {
     ascending: false,
   });
@@ -228,24 +421,22 @@ export const getEmissions = cache(async (facilityId?: string): Promise<Emission[
   const response = await query;
   const data = ensureData(response.data, response.error) ?? [];
   return data.map((row) => normalizeEmission(row as Record<string, unknown>));
-});
+};
 
-export const getGoals = cache(
-  async (facilityId?: string): Promise<SustainabilityGoal[]> => {
-    let query = supabase
-      .from("sustainability_goals")
-      .select("*")
-      .order("deadline", { ascending: true });
+export const getGoals = async (facilityId?: string): Promise<SustainabilityGoal[]> => {
+  let query = supabase
+    .from("sustainability_goals")
+    .select("*")
+    .order("deadline", { ascending: true });
 
-    query = applyFacilityFilter(query, facilityId);
+  query = applyFacilityFilter(query, facilityId);
 
-    const response = await query;
-    const data = ensureData(response.data, response.error) ?? [];
-    return data.map((row) => normalizeGoal(row as Record<string, unknown>));
-  },
-);
+  const response = await query;
+  const data = ensureData(response.data, response.error) ?? [];
+  return data.map((row) => normalizeGoal(row as Record<string, unknown>));
+};
 
-export const getEquipment = cache(async (facilityId?: string): Promise<Equipment[]> => {
+export const getEquipment = async (facilityId?: string): Promise<Equipment[]> => {
   let query = supabase
     .from("equipment")
     .select("*")
@@ -256,24 +447,22 @@ export const getEquipment = cache(async (facilityId?: string): Promise<Equipment
   const response = await query;
   const data = ensureData(response.data, response.error) ?? [];
   return data.map((row) => normalizeEquipment(row as Record<string, unknown>));
-});
+};
 
-export const getWasteStreams = cache(
-  async (facilityId?: string): Promise<WasteStream[]> => {
-    let query = supabase
-      .from("waste_streams")
-      .select("*")
-      .order("recorded_at", { ascending: false });
+export const getWasteStreams = async (facilityId?: string): Promise<WasteStream[]> => {
+  let query = supabase
+    .from("waste_streams")
+    .select("*")
+    .order("recorded_at", { ascending: false });
 
-    query = applyFacilityFilter(query, facilityId);
+  query = applyFacilityFilter(query, facilityId);
 
-    const response = await query;
-    const data = ensureData(response.data, response.error) ?? [];
-    return data.map((row) => normalizeWaste(row as Record<string, unknown>));
-  },
-);
+  const response = await query;
+  const data = ensureData(response.data, response.error) ?? [];
+  return data.map((row) => normalizeWaste(row as Record<string, unknown>));
+};
 
-export const getWaterUsage = cache(async (facilityId?: string): Promise<WaterUsage[]> => {
+export const getWaterUsage = async (facilityId?: string): Promise<WaterUsage[]> => {
   let query = supabase
     .from("water_usage")
     .select("*")
@@ -284,9 +473,9 @@ export const getWaterUsage = cache(async (facilityId?: string): Promise<WaterUsa
   const response = await query;
   const data = ensureData(response.data, response.error) ?? [];
   return data.map((row) => normalizeWater(row as Record<string, unknown>));
-});
+};
 
-export const getAlerts = cache(async (facilityId?: string): Promise<Alert[]> => {
+export const getAlerts = async (facilityId?: string): Promise<Alert[]> => {
   let query = supabase.from("alerts").select("*").order("created_at", {
     ascending: false,
   });
@@ -296,21 +485,19 @@ export const getAlerts = cache(async (facilityId?: string): Promise<Alert[]> => 
   const response = await query;
   const data = ensureData(response.data, response.error) ?? [];
   return data.map((row) => normalizeAlert(row as Record<string, unknown>));
-});
+};
 
-export const getComplianceRecords = cache(
-  async (facilityId?: string): Promise<Compliance[]> => {
-    let query = supabase.from("compliance").select("*").order("due_date", {
-      ascending: true,
-    });
+export const getComplianceRecords = async (facilityId?: string): Promise<Compliance[]> => {
+  let query = supabase.from("compliance").select("*").order("due_date", {
+    ascending: true,
+  });
 
-    query = applyFacilityFilter(query, facilityId);
+  query = applyFacilityFilter(query, facilityId);
 
-    const response = await query;
-    const data = ensureData(response.data, response.error) ?? [];
-    return data.map((row) => normalizeCompliance(row as Record<string, unknown>));
-  },
-);
+  const response = await query;
+  const data = ensureData(response.data, response.error) ?? [];
+  return data.map((row) => normalizeCompliance(row as Record<string, unknown>));
+};
 
 export async function getUnreadAlertsCount(facilityId?: string) {
   let query = supabase
@@ -329,18 +516,6 @@ export async function getFacilityById(id: string) {
   const response = await supabase.from("facilities").select("*").eq("id", id).single();
   const data = ensureData(response.data, response.error);
   return normalizeFacility(data as Record<string, unknown>);
-}
-
-function getComplianceStatus(records: Compliance[]) {
-  if (records.some((record) => record.status === "non_compliant")) {
-    return "non_compliant";
-  }
-
-  if (records.some((record) => record.status === "review_needed")) {
-    return "review_needed";
-  }
-
-  return "compliant";
 }
 
 export async function getFacilitySummaries(): Promise<FacilitySummary[]> {
@@ -371,16 +546,61 @@ export async function getFacilitySummaries(): Promise<FacilitySummary[]> {
   });
 }
 
+export function getEnergyInsight(energy: EnergyConsumption[], facilities: Facility[]) {
+  if (energy.length === 0) {
+    return "Add energy records to generate a live operating insight.";
+  }
+
+  const latestMonthKey = getCurrentMonthKey(energy);
+  const previousMonthKey = getPreviousMonthKey(latestMonthKey);
+  const facilityMap = new Map(facilities.map((facility) => [facility.id, facility.name]));
+  const totalUsage = energy.reduce((sum, entry) => sum + entry.value, 0);
+  const usageByType = energy.reduce<Record<string, number>>((accumulator, entry) => {
+    accumulator[entry.type] = (accumulator[entry.type] ?? 0) + entry.value;
+    return accumulator;
+  }, {});
+  const dominantTypeEntry = Object.entries(usageByType).sort((left, right) => right[1] - left[1])[0];
+  const dominantType = dominantTypeEntry?.[0] ?? "energy";
+  const dominantShare = dominantTypeEntry ? (dominantTypeEntry[1] / totalUsage) * 100 : 0;
+  const peakReading = [...energy].sort((left, right) => right.value - left.value)[0];
+  const currentMonthTotal = energy
+    .filter((entry) => getMonthKey(entry.recorded_at) === latestMonthKey)
+    .reduce((sum, entry) => sum + entry.value, 0);
+  const previousMonthTotal = energy
+    .filter((entry) => getMonthKey(entry.recorded_at) === previousMonthKey)
+    .reduce((sum, entry) => sum + entry.value, 0);
+
+  let trendSentence = "This month is the first tracked period in the live dataset.";
+  if (previousMonthTotal > 0) {
+    const change = ((currentMonthTotal - previousMonthTotal) / previousMonthTotal) * 100;
+    if (change > 5) {
+      trendSentence = `Usage is up ${change.toFixed(1)}% versus last month.`;
+    } else if (change < -5) {
+      trendSentence = `Usage is down ${Math.abs(change).toFixed(1)}% versus last month.`;
+    } else {
+      trendSentence = "Usage is broadly steady versus last month.";
+    }
+  }
+
+  return `${titleCase(dominantType)} drives ${dominantShare.toFixed(
+    0,
+  )}% of tracked usage. The highest single reading came from ${
+    facilityMap.get(peakReading.facility_id) ?? "an active facility"
+  } at ${formatCompactNumber(peakReading.value)} ${peakReading.unit}. ${trendSentence}`;
+}
+
 export async function getDashboardData(facilityId?: string) {
-  const [facilities, energy, emissions, goals, waste, alerts, compliance] =
+  const [facilities, energy, emissions, goals, equipment, waste, water, alerts, compliance] =
     await Promise.all([
       getFacilities(),
       getEnergyConsumption(facilityId),
       getEmissions(facilityId),
       getGoals(facilityId),
+      getEquipment(facilityId),
       getWasteStreams(facilityId),
+      getWaterUsage(facilityId),
       getAlerts(facilityId),
-      getComplianceRecords(),
+      getComplianceRecords(facilityId),
     ]);
   const visibleFacilities = facilityId
     ? facilities.filter((facility) => facility.id === facilityId)
@@ -466,6 +686,39 @@ export async function getDashboardData(facilityId?: string) {
     };
   });
 
+  const freshnessItems = buildFreshnessItems({
+    facilities: visibleFacilities,
+    energy,
+    emissions,
+    goals,
+    equipment,
+    waste,
+    water,
+    alerts,
+    compliance,
+  });
+  const recentActivity = buildActivityFeed({
+    facilities: visibleFacilities,
+    energy,
+    emissions,
+    goals,
+    waste,
+    water,
+    alerts,
+  });
+  const activeFacilities = new Set(
+    [
+      ...energy.map((entry) => entry.facility_id),
+      ...emissions.map((entry) => entry.facility_id),
+      ...goals.map((entry) => entry.facility_id),
+      ...equipment.map((entry) => entry.facility_id),
+      ...waste.map((entry) => entry.facility_id),
+      ...water.map((entry) => entry.facility_id),
+      ...alerts.map((entry) => entry.facility_id),
+      ...compliance.map((entry) => entry.facility_id),
+    ].filter(Boolean),
+  ).size;
+
   return {
     kpis: {
       totalEnergyThisMonth: currentMonthEnergy,
@@ -483,5 +736,62 @@ export async function getDashboardData(facilityId?: string) {
     goals,
     recentAlerts: alerts.slice(0, 4),
     facilityComparison,
+    freshness: {
+      totalRecords: freshnessItems.reduce((sum, item) => sum + item.count, 0),
+      latestActivityAt: recentActivity[0]?.timestamp ?? null,
+      activeFacilities,
+      datasets: freshnessItems,
+      recentActivity,
+    },
+  };
+}
+
+export async function getAdminConsoleData() {
+  const [facilities, energy, emissions, equipment, waste, water, alerts, compliance] =
+    await Promise.all([
+      getFacilities(),
+      getEnergyConsumption(),
+      getEmissions(),
+      getEquipment(),
+      getWasteStreams(),
+      getWaterUsage(),
+      getAlerts(),
+      getComplianceRecords(),
+    ]);
+
+  const freshness = buildFreshnessItems({
+    facilities,
+    energy,
+    emissions,
+    equipment,
+    waste,
+    water,
+    alerts,
+    compliance,
+  });
+  const recentActivity = buildActivityFeed({
+    facilities,
+    energy,
+    emissions,
+    waste,
+    water,
+    alerts,
+  });
+
+  return {
+    datasets: {
+      facilities,
+      energy,
+      emissions,
+      equipment,
+      waste,
+      water,
+      alerts,
+      compliance,
+    },
+    freshness,
+    recentActivity,
+    totalRecords: freshness.reduce((sum, item) => sum + item.count, 0),
+    latestActivityAt: recentActivity[0]?.timestamp ?? null,
   };
 }

@@ -50,6 +50,54 @@ export function formatDate(value: string | null) {
   }).format(new Date(value));
 }
 
+export function formatDateTime(value: string | null) {
+  if (!value) {
+    return "No timestamp";
+  }
+
+  return new Intl.DateTimeFormat("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
+export function formatRelativeTime(value: string | null) {
+  if (!value) {
+    return "No recent activity";
+  }
+
+  const now = Date.now();
+  const target = new Date(value).getTime();
+  const diffMs = target - now;
+  const diffMinutes = Math.round(diffMs / (1000 * 60));
+  const formatter = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
+
+  if (Math.abs(diffMinutes) < 60) {
+    return formatter.format(diffMinutes, "minute");
+  }
+
+  const diffHours = Math.round(diffMinutes / 60);
+  if (Math.abs(diffHours) < 24) {
+    return formatter.format(diffHours, "hour");
+  }
+
+  const diffDays = Math.round(diffHours / 24);
+  if (Math.abs(diffDays) < 30) {
+    return formatter.format(diffDays, "day");
+  }
+
+  const diffMonths = Math.round(diffDays / 30);
+  if (Math.abs(diffMonths) < 12) {
+    return formatter.format(diffMonths, "month");
+  }
+
+  const diffYears = Math.round(diffMonths / 12);
+  return formatter.format(diffYears, "year");
+}
+
 export function daysUntil(value: string | null) {
   if (!value) {
     return null;
@@ -134,4 +182,20 @@ export function titleCase(value: string) {
     .split(/[_\s-]+/)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
+}
+
+export function toDateInputValue(value: string | null | undefined) {
+  if (!value) {
+    return "";
+  }
+
+  return new Date(value).toISOString().slice(0, 10);
+}
+
+export function toDateTimeInputValue(value: string | null | undefined) {
+  if (!value) {
+    return "";
+  }
+
+  return new Date(value).toISOString().slice(0, 16);
 }

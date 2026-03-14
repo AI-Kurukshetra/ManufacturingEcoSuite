@@ -122,7 +122,7 @@ export function GoalsManager({ facilities, goals }: GoalsManagerProps) {
         <div>
           <h2 className="text-xl font-semibold text-slate-900">Goals tracker</h2>
           <p className="text-sm text-slate-500">
-            Track live progress and update milestones directly in Supabase.
+            Track live progress and update milestones directly in the app.
           </p>
         </div>
         <button

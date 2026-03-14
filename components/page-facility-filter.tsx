@@ -1,18 +1,21 @@
 "use client";
 
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 import type { Facility } from "@/types";
 
 interface PageFacilityFilterProps {
   facilities: Facility[];
+  selectedFacilityId?: string;
 }
 
-export function PageFacilityFilter({ facilities }: PageFacilityFilterProps) {
+export function PageFacilityFilter({
+  facilities,
+  selectedFacilityId,
+}: PageFacilityFilterProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const activeFacility = searchParams.get("facility") ?? "all";
+  const activeFacility = selectedFacilityId ?? "all";
 
   return (
     <label className="flex items-center gap-3 text-sm font-medium text-slate-700">
@@ -21,7 +24,7 @@ export function PageFacilityFilter({ facilities }: PageFacilityFilterProps) {
         className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
         value={activeFacility}
         onChange={(event) => {
-          const params = new URLSearchParams(searchParams.toString());
+          const params = new URLSearchParams(window.location.search);
           if (event.target.value === "all") {
             params.delete("facility");
           } else {

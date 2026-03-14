@@ -5,6 +5,8 @@ import { StatusBadge } from "@/components/status-badge";
 import { getComplianceRecords, getFacilities } from "@/lib/data";
 import { daysUntil, formatDate } from "@/lib/format";
 
+export const dynamic = 'force-dynamic'
+
 interface CompliancePageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
@@ -32,7 +34,7 @@ export default async function CompliancePage({ searchParams }: CompliancePagePro
       <EmptyState
         icon={ShieldCheck}
         title="No compliance records"
-        description="Compliance records will appear here once they are added in Supabase."
+        description="Compliance records will appear here once they are added through the Admin Console."
       />
     );
   }

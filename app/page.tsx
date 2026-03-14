@@ -1,4 +1,4 @@
-import { Activity, AlertTriangle, Leaf, Target } from "lucide-react";
+import { Activity, AlertTriangle, Building2, Database, Leaf, Target } from "lucide-react";
 
 import { AlertReadButton } from "@/components/alerts-actions";
 import {
@@ -13,7 +13,9 @@ import {
   calculateGoalProgress,
   formatCompactNumber,
   formatDate,
+  formatDateTime,
   formatPercent,
+  formatRelativeTime,
   getGoalStatus,
   getGoalStatusLabel,
 } from "@/lib/format";
@@ -61,7 +63,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           <div className="mt-4 text-3xl font-semibold text-slate-900">
             {dashboard.kpis.goalsOnTrack}
           </div>
-          <div className="mt-2 text-sm text-slate-500">Live target tracking from Supabase</div>
+          <div className="mt-2 text-sm text-slate-500">Live target tracking from current records</div>
         </div>
       </section>
 
@@ -83,6 +85,99 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
             </p>
           </div>
           <WasteRecyclingChart data={dashboard.wasteRecycling} />
+        </div>
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-[1.35fr_1fr]">
+        <div className="card">
+          <div className="mb-5 flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-semibold text-slate-900">Live Data Pulse</h2>
+              <p className="text-sm text-slate-500">
+                Freshness signals from the underlying operational records.
+              </p>
+            </div>
+            <Database className="h-5 w-5 text-brand" />
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="rounded-xl bg-slate-50 p-4">
+              <div className="text-sm text-slate-500">Total records</div>
+              <div className="mt-2 text-2xl font-semibold text-slate-900">
+                {formatCompactNumber(dashboard.freshness.totalRecords)}
+              </div>
+            </div>
+            <div className="rounded-xl bg-slate-50 p-4">
+              <div className="text-sm text-slate-500">Last update</div>
+              <div className="mt-2 text-2xl font-semibold text-slate-900">
+                {dashboard.freshness.latestActivityAt
+                  ? formatRelativeTime(dashboard.freshness.latestActivityAt)
+                  : "No data"}
+              </div>
+              <div className="mt-1 text-xs text-slate-400">
+                {dashboard.freshness.latestActivityAt
+                  ? formatDateTime(dashboard.freshness.latestActivityAt)
+                  : "Waiting for live records"}
+              </div>
+            </div>
+            <div className="rounded-xl bg-slate-50 p-4">
+              <div className="text-sm text-slate-500">Active facilities</div>
+              <div className="mt-2 text-2xl font-semibold text-slate-900">
+                {dashboard.freshness.activeFacilities}
+              </div>
+              <div className="mt-1 text-xs text-slate-400">With live reporting data</div>
+            </div>
+          </div>
+
+          <div className="mt-5 flex flex-wrap gap-2">
+            {dashboard.freshness.datasets
+              .filter((item) => item.count > 0)
+              .map((item) => (
+                <div
+                  key={item.key}
+                  className="rounded-full border border-slate-200 px-3 py-2 text-sm text-slate-600"
+                >
+                  {item.label}: {item.count}
+                </div>
+              ))}
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="mb-5 flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-semibold text-slate-900">Recent Activity</h2>
+              <p className="text-sm text-slate-500">
+                New records appearing across the monitored datasets.
+              </p>
+            </div>
+            <Building2 className="h-5 w-5 text-brand" />
+          </div>
+
+          <div className="space-y-4">
+            {dashboard.freshness.recentActivity.length === 0 ? (
+              <EmptyState
+                icon={Activity}
+                title="No live activity"
+                description="Recent writes and updates will appear here as soon as records are added."
+              />
+            ) : (
+              dashboard.freshness.recentActivity.map((item) => (
+                <div key={item.id} className="rounded-xl border border-slate-200 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">
+                      {item.category}
+                    </span>
+                    <span className="text-xs text-slate-400">
+                      {formatRelativeTime(item.timestamp)}
+                    </span>
+                  </div>
+                  <div className="mt-3 font-medium text-slate-900">{item.title}</div>
+                  <p className="mt-1 text-sm text-slate-500">{item.detail}</p>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       </section>
 

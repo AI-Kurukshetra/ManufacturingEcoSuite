@@ -94,3 +94,18 @@ export interface FacilitySummary {
   totalEmissions: number;
   complianceStatus: string;
 }
+
+export interface ActivityFeedItem {
+  id: string;
+  category: string;
+  title: string;
+  detail: string;
+  timestamp: string;
+}
+
+export interface DataFreshnessItem {
+  key: string;
+  label: string;
+  count: number;
+  latest_at: string | null;
+}
