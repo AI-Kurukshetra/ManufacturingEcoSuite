@@ -2,6 +2,7 @@ import { cache } from "react";
 
 import {
   addMonths,
+  getGoalStatus,
   getMonthKey,
   getMonthLabel,
   getQuarterLabel,
@@ -381,6 +382,9 @@ export async function getDashboardData(facilityId?: string) {
       getAlerts(facilityId),
       getComplianceRecords(),
     ]);
+  const visibleFacilities = facilityId
+    ? facilities.filter((facility) => facility.id === facilityId)
+    : facilities;
 
   const currentMonthKey = getCurrentMonthKey(energy);
   const previousMonthKey = getPreviousMonthKey(currentMonthKey);
@@ -399,7 +403,7 @@ export async function getDashboardData(facilityId?: string) {
     .filter((entry) => entry.period === currentQuarter)
     .reduce((sum, entry) => sum + entry.value, 0);
 
-  const goalsOnTrack = goals.filter((goal) => goal.status === "in_progress").length;
+  const goalsOnTrack = goals.filter((goal) => getGoalStatus(goal) === "on_track").length;
   const unreadAlerts = alerts.filter((alert) => !alert.is_read).length;
 
   const latestDate = energy.length ? new Date(energy[0].recorded_at) : new Date();
@@ -425,7 +429,7 @@ export async function getDashboardData(facilityId?: string) {
     };
   });
 
-  const emissionsByFacility = facilities.map((facility) => ({
+  const emissionsByFacility = visibleFacilities.map((facility) => ({
     facility: facility.name,
     scope1: emissions
       .filter((entry) => entry.facility_id === facility.id && entry.scope === "scope1")
@@ -444,7 +448,7 @@ export async function getDashboardData(facilityId?: string) {
   );
   const totalWaste = waste.reduce((sum, item) => sum + (item.quantity ?? 0), 0);
 
-  const facilityComparison = facilities.map((facility) => {
+  const facilityComparison = visibleFacilities.map((facility) => {
     const facilityCompliance = compliance.filter(
       (entry) => entry.facility_id === facility.id,
     );

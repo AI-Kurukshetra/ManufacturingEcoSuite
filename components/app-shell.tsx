@@ -61,6 +61,8 @@ export function AppShell({ children, facilities, unreadAlerts }: AppShellProps) 
   const searchParams = useSearchParams();
   const [mobileOpen, setMobileOpen] = useState(false);
   const activeFacility = searchParams.get("facility") ?? "all";
+  const alertsHref =
+    activeFacility === "all" ? "/alerts" : `/alerts?facility=${activeFacility}`;
 
   const search = (() => {
     const params = new URLSearchParams(searchParams.toString());
@@ -182,14 +184,18 @@ export function AppShell({ children, facilities, unreadAlerts }: AppShellProps) 
                     </option>
                   ))}
                 </select>
-                <div className="relative rounded-full border border-slate-200 p-2 text-slate-700">
+                <Link
+                  href={alertsHref}
+                  aria-label="Open alerts"
+                  className="relative rounded-full border border-slate-200 p-2 text-slate-700 transition hover:border-brand hover:text-brand"
+                >
                   <Bell className="h-5 w-5" />
                   {unreadAlerts > 0 ? (
                     <span className="absolute -right-1 -top-1 rounded-full bg-accent px-1.5 text-[10px] font-semibold text-brand">
                       {unreadAlerts}
                     </span>
                   ) : null}
-                </div>
+                </Link>
               </div>
             </div>
           </header>

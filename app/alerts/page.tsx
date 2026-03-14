@@ -53,6 +53,7 @@ export default async function AlertsPage({ searchParams }: AlertsPageProps) {
     severity === "all"
       ? alerts
       : alerts.filter((alert) => alert.severity === severity);
+  const unreadFilteredAlerts = filteredAlerts.filter((alert) => !alert.is_read);
   const unreadAlertIds = filteredAlerts
     .filter((alert) => !alert.is_read)
     .map((alert) => alert.id);
@@ -87,11 +88,11 @@ export default async function AlertsPage({ searchParams }: AlertsPageProps) {
         </div>
       </section>
 
-      {filteredAlerts.length === 0 ? (
+      {unreadFilteredAlerts.length === 0 ? (
         <EmptyState
           icon={Bell}
           title="No unread alerts"
-          description="Everything is under control for the current filter."
+          description="Everything is under control for the current filter. Any existing alerts are already marked as read."
         />
       ) : (
         <div className="space-y-4">

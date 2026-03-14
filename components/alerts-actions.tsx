@@ -13,21 +13,37 @@ interface AlertReadButtonProps {
 export function AlertReadButton({ alertId, disabled }: AlertReadButtonProps) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   return (
-    <button
-      type="button"
-      disabled={pending || disabled}
-      className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:border-brand hover:text-brand disabled:cursor-not-allowed disabled:opacity-50"
-      onClick={async () => {
-        setPending(true);
-        await supabase.from("alerts").update({ is_read: true }).eq("id", alertId);
-        router.refresh();
-        setPending(false);
-      }}
-    >
-      {pending ? "Saving..." : "Mark as read"}
-    </button>
+    <div className="space-y-2">
+      <button
+        type="button"
+        disabled={pending || disabled}
+        className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:border-brand hover:text-brand disabled:cursor-not-allowed disabled:opacity-50"
+        onClick={async () => {
+          setPending(true);
+          setError(null);
+
+          const { error: updateError } = await supabase
+            .from("alerts")
+            .update({ is_read: true })
+            .eq("id", alertId);
+
+          if (updateError) {
+            setError(updateError.message);
+            setPending(false);
+            return;
+          }
+
+          router.refresh();
+          setPending(false);
+        }}
+      >
+        {pending ? "Saving..." : "Mark as read"}
+      </button>
+      {error ? <p className="text-xs text-rose-600">{error}</p> : null}
+    </div>
   );
 }
 
@@ -38,20 +54,36 @@ interface MarkAllReadButtonProps {
 export function MarkAllReadButton({ alertIds }: MarkAllReadButtonProps) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   return (
-    <button
-      type="button"
-      disabled={pending || alertIds.length === 0}
-      className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-50"
-      onClick={async () => {
-        setPending(true);
-        await supabase.from("alerts").update({ is_read: true }).in("id", alertIds);
-        router.refresh();
-        setPending(false);
-      }}
-    >
-      {pending ? "Updating..." : "Mark all as read"}
-    </button>
+    <div className="space-y-2">
+      <button
+        type="button"
+        disabled={pending || alertIds.length === 0}
+        className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-50"
+        onClick={async () => {
+          setPending(true);
+          setError(null);
+
+          const { error: updateError } = await supabase
+            .from("alerts")
+            .update({ is_read: true })
+            .in("id", alertIds);
+
+          if (updateError) {
+            setError(updateError.message);
+            setPending(false);
+            return;
+          }
+
+          router.refresh();
+          setPending(false);
+        }}
+      >
+        {pending ? "Updating..." : "Mark all as read"}
+      </button>
+      {error ? <p className="text-xs text-rose-600">{error}</p> : null}
+    </div>
   );
 }

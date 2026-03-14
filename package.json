@@ -9,8 +9,8 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@supabase/auth-helpers-nextjs": "latest",
-    "@supabase/supabase-js": "latest",
+    "@supabase/auth-helpers-nextjs": "^0.15.0",
+    "@supabase/supabase-js": "^2.99.1",
     "date-fns": "latest",
     "lucide-react": "latest",
     "next": "16.1.6",

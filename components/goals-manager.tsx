@@ -43,6 +43,7 @@ export function GoalsManager({ facilities, goals }: GoalsManagerProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<GoalFormState>({
     ...emptyForm,
     facility_id: facilities[0]?.id ?? "",
@@ -51,11 +52,17 @@ export function GoalsManager({ facilities, goals }: GoalsManagerProps) {
   const facilityMap = new Map(facilities.map((facility) => [facility.id, facility.name]));
 
   async function saveGoal() {
+    if (!form.title.trim() || !form.facility_id || !form.target_value || !form.deadline) {
+      setError("Title, facility, target value, and deadline are required.");
+      return;
+    }
+
     setPending(true);
+    setError(null);
 
     const payload = {
       facility_id: form.facility_id,
-      title: form.title,
+      title: form.title.trim(),
       target_value: Number(form.target_value),
       current_value: Number(form.current_value),
       unit: form.unit,
@@ -63,21 +70,48 @@ export function GoalsManager({ facilities, goals }: GoalsManagerProps) {
       status: "in_progress",
     };
 
+    let responseError: { message: string } | null = null;
     if (form.id) {
-      await supabase.from("sustainability_goals").update(payload).eq("id", form.id);
+      const { error: updateError } = await supabase
+        .from("sustainability_goals")
+        .update(payload)
+        .eq("id", form.id);
+      responseError = updateError;
     } else {
-      await supabase.from("sustainability_goals").insert(payload);
+      const { error: insertError } = await supabase
+        .from("sustainability_goals")
+        .insert(payload);
+      responseError = insertError;
+    }
+
+    if (responseError) {
+      setError(responseError.message);
+      setPending(false);
+      return;
     }
 
     setPending(false);
     setOpen(false);
+    setError(null);
     setForm({ ...emptyForm, facility_id: facilities[0]?.id ?? "" });
     router.refresh();
   }
 
   async function deleteGoal(id: string) {
     setPending(true);
-    await supabase.from("sustainability_goals").delete().eq("id", id);
+    setError(null);
+
+    const { error: deleteError } = await supabase
+      .from("sustainability_goals")
+      .delete()
+      .eq("id", id);
+
+    if (deleteError) {
+      setError(deleteError.message);
+      setPending(false);
+      return;
+    }
+
     setPending(false);
     router.refresh();
   }
@@ -105,6 +139,11 @@ export function GoalsManager({ facilities, goals }: GoalsManagerProps) {
       </div>
 
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        {error ? (
+          <div className="border-b border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            {error}
+          </div>
+        ) : null}
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-sm">
             <thead className="sticky top-0 bg-slate-50 text-slate-600">
@@ -212,6 +251,11 @@ export function GoalsManager({ facilities, goals }: GoalsManagerProps) {
                 Close
               </button>
             </div>
+            {error ? (
+              <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                {error}
+              </div>
+            ) : null}
             <div className="grid gap-4 md:grid-cols-2">
               <label className="space-y-2 text-sm font-medium text-slate-700">
                 Title
